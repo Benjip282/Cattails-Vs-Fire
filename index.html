@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cattails vs Fire</title>
+<style>
+  body {
+    background: #d6f5d6;
+    text-align: center;
+    font-family: "Comic Sans MS", sans-serif;
+  }
+  canvas {
+    background: #aef7ae;
+    border: 4px solid #333;
+    margin-top: 10px;
+  }
+  #info { margin-top: 10px; }
+</style>
+</head>
+<body>
+<h1>🔥 Cattails vs Fire 🌿</h1>
+<p id="info">Click a tile to plant a cattail (cost 50). Water regenerates over time.</p>
+<canvas id="game" width="800" height="400"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const rows = 5, cols = 9;
+const cellW = canvas.width / cols, cellH = canvas.height / rows;
+
+let cattails = [];
+let fires = [];
+let projectiles = [];
+let water = 100;
+let lastSpawn = 0;
+
+class Cattail {
+  constructor(r, c) {
+    this.row = r;
+    this.col = c;
+    this.x = c * cellW + cellW/2;
+    this.y = r * cellH + cellH/2;
+    this.shootTimer = 0;
+  }
+  update() {
+    this.shootTimer++;
+    if (this.shootTimer > 60) {
+      projectiles.push(new Projectile(this.x + 20, this.y));
+      this.shootTimer = 0;
+    }
+  }
+  draw() {
+    ctx.fillStyle = "#228B22";
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 25, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+
+class Fire {
+  constructor(r) {
+    this.row = r;
+    this.x = canvas.width - 30;
+    this.y = r * cellH + cellH/2;
+    this.hp = 3;
+    this.speed = 0.5;
+  }
+  update() {
+    this.x -= this.speed;
+  }
+  draw() {
+    ctx.fillStyle = "red";
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 25, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+
+class Projectile {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.speed = 4;
+  }
+  update() {
+    this.x += this.speed;
+  }
+  draw() {
+    ctx.fillStyle = "blue";
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 5, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+
+function spawnFire() {
+  let row = Math.floor(Math.random()*rows);
+  fires.push(new Fire(row));
+}
+
+canvas.addEventListener("click", e => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const col = Math.floor(x / cellW);
+  const row = Math.floor(y / cellH);
+
+  // Check if cattail already exists there
+  if (!cattails.some(c => c.row===row && c.col===col) && water >= 50) {
+    cattails.push(new Cattail(row, col));
+    water -= 50;
+  }
+});
+
+function update() {
+  // Regenerate water
+  water = Math.min(200, water + 0.1);
+
+  // Spawn fires every few seconds
+  if (Date.now() - lastSpawn > 2500) {
+    spawnFire();
+    lastSpawn = Date.now();
+  }
+
+  cattails.forEach(c => c.update());
+  fires.forEach(f => f.update());
+  projectiles.forEach(p => p.update());
+
+  // Collision: projectile hits fire
+  projectiles.forEach((p, pi) => {
+    fires.forEach((f, fi) => {
+      if (Math.abs(p.x - f.x) < 20 && Math.abs(p.y - f.y) < 20) {
+        f.hp--;
+        projectiles.splice(pi,1);
+        if (f.hp <= 0) fires.splice(fi,1);
+      }
+    });
+  });
+
+  // Lose condition
+  fires.forEach(f => {
+    if (f.x < 0) {
+      alert("🔥 Game Over! The fire reached your cattails!");
+      document.location.reload();
+    }
+  });
+}
+
+function drawGrid() {
+  for (let r=0; r<rows; r++) {
+    for (let c=0; c<cols; c++) {
+      ctx.strokeStyle = "black";
+      ctx.strokeRect(c*cellW, r*cellH, cellW, cellH);
+    }
+  }
+}
+
+function drawHUD() {
+  ctx.fillStyle = "black";
+  ctx.font = "20px Arial";
+  ctx.fillText(`Water: ${Math.floor(water)}`, 10, 25);
+}
+
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawGrid();
+  cattails.forEach(c => c.draw());
+  fires.forEach(f => f.draw());
+  projectiles.forEach(p => p.draw());
+  drawHUD();
+}
+
+function gameLoop() {
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+</script>
+</body>
+</html>
