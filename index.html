@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -24,7 +25,7 @@
 <h1>🔥 Cattails vs Fire 🌿</h1>
 <p id="info">
   Click a tile to plant a cattail. Water regenerates over time.<br />
-  1️⃣ Basic (50) | 2️⃣ Rapid (100) | 3️⃣ Freeze (150)
+  1️⃣ Basic (50) | 2️⃣ Rapid (100) | 3️⃣ Freeze (150) | 9️⃣ Well (100)
 </p>
 <canvas id="game" width="800" height="400"></canvas>
 
@@ -45,6 +46,8 @@ let gameOver = false;
 let nextWaveReady = true;
 
 // --- Load Images ---
+const wellImg = new Image();
+wellImg.src = "well.png";
 const basicImg = new Image();
 basicImg.src = "basic.png"; // <- Replace with your image
 const rapidImg = new Image();
@@ -57,6 +60,8 @@ const strongImg = new Image();
 strongImg.src = "strong.png";
 const bossImg = new Image();
 bossImg.src = "boss.png";
+const megaImg = new Image();
+megaImg.src = "mega.png";
 
 // ---------- Cattails ----------
 class Cattail {
@@ -70,7 +75,23 @@ class Cattail {
   update() {}
   draw() {}
 }
-
+class WellCattail extends Cattail {
+  constructor(r, c) {
+    super(r, c);
+    this.shootRate = 60;
+    this.image = wellImg;
+  }
+  update() {
+    this.shootTimer++;
+    if (this.shootTimer > this.shootRate) {
+      water += 25;
+      this.shootTimer = 0;
+    }
+  }
+  draw() {
+    ctx.drawImage(this.image, this.x - 25, this.y - 25, 50, 50);
+  }
+}
 class BasicCattail extends Cattail {
   constructor(r, c) {
     super(r, c);
@@ -159,6 +180,14 @@ class Fire {
       baseHp *= 1 + 0.2 * (difficulty - 1);
       baseSpeed *= 1 + 0.05 * (difficulty - 1);
       image = bossImg;
+    } else if (type === "mega") {
+        baseHp = 100;
+        baseSpeed = 0.20;
+        color = "black";
+        size = 80;
+        baseHp *= 1 + 0.5 * (difficulty - 1);
+        baseSpeed *= 1 + 0.2 * (difficulty - 1);
+        image = megaImg;
     }
 
     this.x = canvas.width - 30;
@@ -218,8 +247,10 @@ function spawnWave() {
 
   const difficulty = wave;
 
-  if (wave % 5 === 0) {
+    if (wave % 5 === 0 &&!(wave === 20)) {
     fires.push(new Fire(Math.floor(Math.random() * rows), "boss", difficulty / 5));
+  } else if(wave % 20 === 0) {
+    fires.push(new Fire(2, "mega", difficulty / 20))
   } else {
     for (let i = 0; i < wave + 2; i++) {
       let row = Math.floor(Math.random() * rows);
@@ -248,19 +279,34 @@ canvas.addEventListener("click", e => {
   } else if (cattailType === 3 && water >= 150) {
     cattails.push(new FreezeCattail(row, col));
     water -= 150;
+  } else if (cattailType === 9 && water >= 100) {
+    cattails.push(new WellCattail(row, col));
+    water -= 100;
   }
 });
 
 window.addEventListener("keydown", e => {
-  if (["1", "2", "3"].includes(e.key)) cattailType = parseInt(e.key);
+  if (["9", "1", "2", "3"].includes(e.key)) cattailType = parseInt(e.key);
+  if (e.key == "/") hack();
 });
+function hack() {
+  var command = prompt("Yes Master?");
+  if (command == "nextWave") {
+    fires = [];
+  } else if (command == "setWave") {
+    fires = [];
+    wave = parseInt(prompt("What wave?"));
+  } else if (command == "setWater") {
+    water = parseInt(prompt("How much water?"));
+  }
+}
 
 // ---------- Game Logic ----------
 function update() {
   if (gameOver) return;
 
   // Regenerate water
-  water = Math.min(200, water + 0.1);
+  water = Math.min(500, water + 0.1);
 
   // Start next wave if fires are gone
   if (fires.length === 0 && nextWaveReady) {
@@ -314,7 +360,7 @@ function drawHUD() {
   ctx.fillStyle = "black";
   ctx.font = "20px Arial";
   ctx.fillText(`Water: ${Math.floor(water)} | Wave: ${wave}`, 10, 25);
-  ctx.fillText(`Selected: ${["Basic", "Rapid", "Freeze"][cattailType - 1]}`, 10, 50);
+  ctx.fillText(`Selected: ${["Basic", "Rapid", "Freeze","","","","","","Well"][cattailType - 1]}`, 10, 50);
   if (fires.length === 0) {
     ctx.fillText("🌊 Next wave soon...", 600, 25);
   }
