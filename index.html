@@ -25,7 +25,7 @@
 <h1>🔥 Cattails vs Fire 🌿</h1>
 <p id="info">
   Click a tile to plant a cattail. Water regenerates over time.<br />
-  1️⃣ Basic (50) | 2️⃣ Rapid (100) | 3️⃣ Freeze (150) | 9️⃣ Well (100)
+  1️⃣ Basic (50) | 2️⃣ Rapid (100) | 3️⃣ Freeze (150) | 4️⃣ Boom (150) | 6️⃣ Crack (300) | 9️⃣ Well (100)
 </p>
 <canvas id="game" width="800" height="400"></canvas>
 
@@ -54,6 +54,12 @@ const rapidImg = new Image();
 rapidImg.src = "rapid.png"; // <- Replace with your image
 const freezeImg = new Image();
 freezeImg.src = "freeze.png"; // <- Replace with your image
+const boomImg = new Image();
+boomImg.src = "boom.png";
+const explodeImg = new Image();
+explodeImg.src = "explode.png";
+const crackImg = new Image();
+crackImg.src = "crack.png";
 const fireImg = new Image();
 fireImg.src = "fire.png"; // <- Replace with your image
 const strongImg = new Image();
@@ -71,6 +77,7 @@ class Cattail {
     this.x = c * cellW + cellW / 2;
     this.y = r * cellH + cellH / 2;
     this.shootTimer = 0;
+    this.die = false;
   }
   update() {}
   draw() {}
@@ -84,7 +91,7 @@ class WellCattail extends Cattail {
   update() {
     this.shootTimer++;
     if (this.shootTimer > this.shootRate) {
-      water += 25;
+      water += 5;
       this.shootTimer = 0;
     }
   }
@@ -145,6 +152,79 @@ class FreezeCattail extends Cattail {
     ctx.drawImage(this.image, this.x - 25, this.y - 25, 50, 50);
   }
 }
+class BoomCattail extends Cattail {
+  constructor(r, c) {
+    super(r, c);
+    this.triggerX = this.x + 50;
+    this.image = boomImg;
+    this.explodetime = -1;
+  }
+  update() {
+    if (this.explodetime > 0) {
+      this.explodetime--;
+    }
+    for (let index = 0; index < fires.length; index++) {
+      const element = fires[index];
+      if (element.x >= this.x && element.x <= this.triggerX && element.row == this.row) {
+        this.explodetime = 60;
+        element.hp = 0;
+        
+      }
+      
+    }
+    if (this.explodetime == 0) {
+      
+      this.die = true;
+    }
+    
+    
+  }
+  draw() {
+    ctx.drawImage(this.image, this.x - 25, this.y - 25, 50, 50);
+    if (this.explodetime > 0) {
+      ctx.drawImage(explodeImg, this.x - 100, this.y - 100, 200, 200);
+    }
+  }
+}
+class CrackCattail extends Cattail {
+  constructor(r, c) {
+    super(r, c);
+    this.triggerX = this.x + 50;
+    this.image = crackImg;
+    this.lifetime = 500;
+    this.stuck = [];
+  }
+  update() {
+    if (this.lifetime > 0) {
+      this.lifetime--;
+    }
+    if (this.lifetime === 0) {
+      for (let index = 0; index < this.stuck.length; index++) {
+        const element = this.stuck[index];
+        element.abled = true;
+        
+      }
+      this.die = true;
+    }
+    for (const f of fires) {
+      if (
+        f.abled && // only freeze ones still moving
+        f.x >= this.x &&
+        f.x <= this.triggerX &&
+        f.row === this.row &&
+        !this.stuck.includes(f)
+      ) {
+        f.abled = false;
+        this.stuck.push(f);
+      }
+    }
+    
+    
+  }
+  draw() {
+    ctx.drawImage(this.image, this.x - 25, this.y - 25, 50, 50);
+  }
+}
 
 // ---------- Fires ----------
 class Fire {
@@ -153,6 +233,7 @@ class Fire {
     this.type = type;
     this.y = r * cellH + cellH / 2;
     this.slowTimer = 0;
+    this.abled = true;
 
     // base stats
     let baseHp, baseSpeed, color, size, image;
@@ -204,7 +285,9 @@ class Fire {
       this.slowTimer--;
       currentSpeed *= 0.5;
     }
-    this.x -= currentSpeed;
+    if (this.abled) {
+      this.x -= currentSpeed;
+    }
   }
   draw() {
     // Optional: draw with image
@@ -282,11 +365,17 @@ canvas.addEventListener("click", e => {
   } else if (cattailType === 9 && water >= 100) {
     cattails.push(new WellCattail(row, col));
     water -= 100;
+  } else if (cattailType === 4 && water >= 150) {
+    cattails.push(new BoomCattail(row, col));
+    water -= 150;
+  } else if (cattailType === 5 && water >= 300) {
+    cattails.push(new CrackCattail(row, col));
+    water -= 300;
   }
 });
 
 window.addEventListener("keydown", e => {
-  if (["9", "1", "2", "3"].includes(e.key)) cattailType = parseInt(e.key);
+  if (["9", "1", "2", "3", "4", "5"].includes(e.key)) cattailType = parseInt(e.key);
   if (e.key == "/") hack();
 });
 function hack() {
@@ -330,6 +419,17 @@ function update() {
 
   projectiles = projectiles.filter(p => !p.hit);
   fires = fires.filter(f => f.hp > 0);
+  var newcat = [];
+  for (let index = 0; index < cattails.length; index++) {
+    const element = cattails[index];
+    if (element.die) {
+      console.log("boohoo");
+    } else {
+      newcat.push(element);
+    }
+    
+  }
+  cattails = newcat;
 
   // When all fires gone, mark ready for next wave
   if (fires.length === 0 && !nextWaveReady) {
@@ -360,7 +460,7 @@ function drawHUD() {
   ctx.fillStyle = "black";
   ctx.font = "20px Arial";
   ctx.fillText(`Water: ${Math.floor(water)} | Wave: ${wave}`, 10, 25);
-  ctx.fillText(`Selected: ${["Basic", "Rapid", "Freeze","","","","","","Well"][cattailType - 1]}`, 10, 50);
+  ctx.fillText(`Selected: ${["Basic", "Rapid", "Freeze","Boom","Crack","","","","Well"][cattailType - 1]}`, 10, 50);
   if (fires.length === 0) {
     ctx.fillText("🌊 Next wave soon...", 600, 25);
   }
