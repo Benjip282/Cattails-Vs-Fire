@@ -25,7 +25,7 @@
 <h1>🔥 Cattails vs Fire 🌿</h1>
 <p id="info">
   Click a tile to plant a cattail. Water regenerates over time.<br />
-  1️⃣ Basic (50) | 2️⃣ Rapid (100) | 3️⃣ Freeze (150) | 4️⃣ Boom (150) | 6️⃣ Crack (300) | 9️⃣ Well (100)
+  1️⃣ Basic (50) | 2️⃣ Rapid (100) | 3️⃣ Freeze (150) | 4️⃣ Boom (150) | 5️⃣ Crack (300) | 6️⃣ Drenched (250) | 9️⃣ Well (100)
 </p>
 <canvas id="game" width="800" height="400"></canvas>
 
@@ -60,6 +60,10 @@ const explodeImg = new Image();
 explodeImg.src = "explode.png";
 const crackImg = new Image();
 crackImg.src = "crack.png";
+const drenchedImg = new Image();
+drenchedImg.src = "drenched.png";
+const splashImg = new Image();
+splashImg.src = "splash.png";
 const fireImg = new Image();
 fireImg.src = "fire.png"; // <- Replace with your image
 const strongImg = new Image();
@@ -225,6 +229,27 @@ class CrackCattail extends Cattail {
     ctx.drawImage(this.image, this.x - 25, this.y - 25, 50, 50);
   }
 }
+class DrenchedCattail extends Cattail {
+  constructor(r, c) {
+    super(r, c);
+    this.image = freezeImg;
+    this.killtime = 60;
+  }
+  update() {
+    if (this.killtime > 0) {
+      this.killtime--;
+    }
+    if (this.killtime === 0) {
+      for (const f of fires) {
+        f.splash();
+        this.die = true;
+      }
+    }
+  }
+  draw() {
+    ctx.drawImage(drenchedImg, this.x - 25, this.y - 25, 50, 50);
+  }
+}
 
 // ---------- Fires ----------
 class Fire {
@@ -234,6 +259,7 @@ class Fire {
     this.y = r * cellH + cellH / 2;
     this.slowTimer = 0;
     this.abled = true;
+    this.splashtime = -1;
 
     // base stats
     let baseHp, baseSpeed, color, size, image;
@@ -278,13 +304,21 @@ class Fire {
     this.size = size;
     this.image = image;
   }
-
+  splash() {
+    this.splashtime = 60;
+  }
   update() {
+    if (this.splashtime > 0) {
+      this.splashtime--;
+    }
+    if (this.splashtime === 0) {
+      fires = fires.filter(f => !f.splashtime == 0);
+    }
     let currentSpeed = this.speed;
     if (this.slowTimer > 0) {
       this.slowTimer--;
       currentSpeed *= 0.5;
-    }
+    } 
     if (this.abled) {
       this.x -= currentSpeed;
     }
@@ -292,12 +326,17 @@ class Fire {
   draw() {
     // Optional: draw with image
     if (fireImg.complete) {
-      ctx.drawImage(this.image, this.x - this.size, this.y - this.size, this.size * 2, this.size * 2);
+      if (this.splashtime == -1) {
+        ctx.drawImage(this.image, this.x - this.size, this.y - this.size, this.size * 2, this.size * 2);
+      }
     } else {
       ctx.fillStyle = this.color;
       ctx.beginPath();
       ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
       ctx.fill();
+    }
+    if (this.splashtime > 0) {
+      ctx.drawImage(splashImg, this.x - 100, this.y - 100, 200, 200)
     }
   }
 }
@@ -330,7 +369,7 @@ function spawnWave() {
 
   const difficulty = wave;
 
-    if (wave % 5 === 0 &&!(wave === 20)) {
+    if (wave % 5 === 0 &&!(wave % 20 === 0)) {
     fires.push(new Fire(Math.floor(Math.random() * rows), "boss", difficulty / 5));
   } else if(wave % 20 === 0) {
     fires.push(new Fire(2, "mega", difficulty / 20))
@@ -371,11 +410,14 @@ canvas.addEventListener("click", e => {
   } else if (cattailType === 5 && water >= 300) {
     cattails.push(new CrackCattail(row, col));
     water -= 300;
+  } else if (cattailType === 6 && water >= 250) {
+    cattails.push(new DrenchedCattail(row, col));
+    water -= 250;
   }
 });
 
 window.addEventListener("keydown", e => {
-  if (["9", "1", "2", "3", "4", "5"].includes(e.key)) cattailType = parseInt(e.key);
+  if (["9", "1", "2", "3", "4", "5", "6"].includes(e.key)) cattailType = parseInt(e.key);
   if (e.key == "/") hack();
 });
 function hack() {
@@ -387,6 +429,10 @@ function hack() {
     wave = parseInt(prompt("What wave?"));
   } else if (command == "setWater") {
     water = parseInt(prompt("How much water?"));
+  } else if (command == "drenchAll") {
+    for (const f of fires) {
+      f.splash();
+    }
   }
 }
 
@@ -460,7 +506,7 @@ function drawHUD() {
   ctx.fillStyle = "black";
   ctx.font = "20px Arial";
   ctx.fillText(`Water: ${Math.floor(water)} | Wave: ${wave}`, 10, 25);
-  ctx.fillText(`Selected: ${["Basic", "Rapid", "Freeze","Boom","Crack","","","","Well"][cattailType - 1]}`, 10, 50);
+  ctx.fillText(`Selected: ${["Basic", "Rapid", "Freeze","Boom","Crack","Drenched","","","Well"][cattailType - 1]}`, 10, 50);
   if (fires.length === 0) {
     ctx.fillText("🌊 Next wave soon...", 600, 25);
   }
